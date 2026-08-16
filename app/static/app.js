@@ -467,10 +467,16 @@ startNavBtn.addEventListener('click', startNavigation);
 cancelNavBtn.addEventListener('click', cancelNavigation);
 nextStepBtn.addEventListener('click', advanceNextStep);
 
-muteBtn.addEventListener('click', () => {
+muteBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
   isMuted = !isMuted;
   muteBtn.textContent = isMuted ? '🔇' : '🔊';
-  if (!isMuted) speak("Voice enabled");
+  if (isMuted) {
+    muteBtn.classList.add('muted');
+  } else {
+    muteBtn.classList.remove('muted');
+    speak("Voice active and unmuted.", true);
+  }
 });
 
 // ── Initialization ───────────────────────────────────────────────────────────
