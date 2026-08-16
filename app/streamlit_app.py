@@ -1,9 +1,10 @@
 """
 BlindAid — Streamlit Mobile Web Application
 =============================================
-Streamlit Web App deployable to Streamlit Community Cloud (streamlit.io).
-Supports camera frame capture, YOLO obstacle detection, 3-corridor path analysis,
-Dijkstra indoor navigation, and audio voice instructions.
+Live WebRTC Streamer + Snapshot Fallback
+Deployable to Streamlit Community Cloud (streamlit.io).
+Supports real-time continuous video streaming, YOLO object detection,
+3-corridor path analysis, Dijkstra indoor navigation, and Web Speech audio instructions.
 """
 
 import streamlit as st
@@ -11,9 +12,9 @@ import cv2
 import numpy as np
 from PIL import Image
 import sys
-import json
 import time
 from pathlib import Path
+import av
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
@@ -23,6 +24,12 @@ from inference.spatial_analyzer import SpatialAnalyzer, Urgency
 from inference.path_analyzer    import PathAnalyzer
 from navigation.map_manager     import MapManager
 from navigation.route_planner   import RoutePlanner
+
+try:
+    from streamlit_webrtc import webrtc_streamer, VideoHTMLAttributes, WebRtcMode
+    WEBRTC_AVAILABLE = True
+except ImportError:
+    WEBRTC_AVAILABLE = False
 
 
 # ── Page Config ────────────────────────────────────────────────────────────────
@@ -47,13 +54,6 @@ st.markdown("""
         height: 50px !important;
         width: 100% !important;
     }
-    .status-card {
-        background: rgba(18, 26, 42, 0.9);
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        padding: 15px;
-        border-radius: 12px;
-        margin-bottom: 15px;
-    }
     .voice-box {
         background: #004e92;
         color: #ffffff;
@@ -62,6 +62,7 @@ st.markdown("""
         font-size: 1.1rem;
         font-weight: 700;
         border-left: 5px solid #00ff87;
+        margin-top: 10px;
     }
     .voice-box-critical {
         background: #dc2626;
@@ -71,7 +72,7 @@ st.markdown("""
         font-size: 1.1rem;
         font-weight: 700;
         border-left: 5px solid #ff3366;
-        animation: pulse 1s infinite alternate;
+        margin-top: 10px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -93,8 +94,8 @@ detector, spatial_analyzer, path_analyzer, map_manager, route_planner = load_ai_
 
 
 # ── App Header ─────────────────────────────────────────────────────────────────
-st.title("👁️ BlindAid — AI Mobile Navigation")
-st.caption("Real-Time Obstacle Detection • Floor Plan Route Guidance • Voice Alerts")
+st.title("👁️ BlindAid — Real-Time Mobile Navigation")
+st.caption("Continuous WebRTC Object Tracking • Path Corridors • Voice Alerts")
 
 # ── Sidebar Controls ───────────────────────────────────────────────────────────
 with st.sidebar:
@@ -120,8 +121,7 @@ with st.sidebar:
         st.warning("⚠️ Running in Camera-Only Mode")
 
     st.markdown("---")
-    st.markdown("### 🎙️ Audio Settings")
-    auto_speak = st.checkbox("Enable Auto Web Speech (TTS)", value=True)
+    auto_speak = st.checkbox("Enable Auto Speech Output (TTS)", value=True)
 
 
 # ── Active Route Display ───────────────────────────────────────────────────────
@@ -150,63 +150,79 @@ if st.session_state.get("nav_active") and route_planner and route_planner.is_nav
         st.session_state["nav_active"] = False
 
 
-# ── Camera Input ───────────────────────────────────────────────────────────────
-st.subheader("📷 Mobile Camera Feed")
-camera_file = st.camera_input("Take a photo or point your camera ahead")
+# ── WebRTC Video Streamer (Continuous Real-Time Tracking) ──────────────────────
+st.subheader("📹 Live Camera & Object Tracking")
 
-if camera_file is not None:
-    # Convert image to OpenCV format
-    img_pil = Image.open(camera_file)
-    frame_bgr = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
+class VideoProcessor:
+    def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
+        img = frame.to_ndarray(format="bgr24")
 
-    # 1. Detect objects
-    detections = detector.detect(frame_bgr)
+        # 1. Detect Objects
+        detections = detector.detect(img)
 
-    # 2. Path analysis
-    path_res = path_analyzer.analyze(frame_bgr, detections)
+        # 2. Corridor Path Analysis
+        path_res = path_analyzer.analyze(img, detections)
 
-    # 3. Obstacle warnings
-    obstacle_insts = spatial_analyzer.analyze(detections, path_res)
+        # 3. Draw Overlay
+        vis_frame = path_analyzer.draw_overlay(img, path_res)
+        vis_frame = detector.draw_detections(vis_frame, detections)
 
-    # Render Visual Overlay
-    vis_frame = path_analyzer.draw_overlay(frame_bgr, path_res)
-    vis_frame = detector.draw_detections(vis_frame, detections)
-    vis_rgb   = cv2.cvtColor(vis_frame, cv2.COLOR_BGR2RGB)
+        return av.VideoFrame.from_ndarray(vis_frame, format="bgr24")
 
-    st.image(vis_rgb, use_column_width=True, caption="Live Path Corridors (Green = Clear, Red = Blocked)")
 
-    # Voice Instruction Selection
-    voice_msg = path_res.instruction
-    is_critical = False
+if WEBRTC_AVAILABLE:
+    webrtc_ctx = webrtc_streamer(
+        key="blindaid-live-stream",
+        mode=WebRtcMode.SENDRECV,
+        video_processor_factory=VideoProcessor,
+        media_stream_constraints={"video": True, "audio": False},
+        async_processing=True,
+    )
 
-    if obstacle_insts:
-        top_obs = obstacle_insts[0]
-        if top_obs.urgency == Urgency.CRITICAL:
-            voice_msg = top_obs.message
-            is_critical = True
-        elif top_obs.urgency == Urgency.NEAR:
-            voice_msg = top_obs.message
+# Fallback / Photo Mode
+with st.expander("📷 Photo / Snapshot Mode"):
+    camera_file = st.camera_input("Take a photo")
+    if camera_file is not None:
+        img_pil = Image.open(camera_file)
+        frame_bgr = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
 
-    # Display Spoken Box
-    box_class = "voice-box-critical" if is_critical else "voice-box"
-    st.markdown(f'<div class="{box_class}">📢 {voice_msg}</div>', unsafe_allow_html=True)
+        detections = detector.detect(frame_bgr)
+        path_res   = path_analyzer.analyze(frame_bgr, detections)
+        obstacle_insts = spatial_analyzer.analyze(detections, path_res)
 
-    # HTML5 Web Speech Synthesis (Auto Speaks on Phone!)
-    if auto_speak and voice_msg:
-        escaped_msg = voice_msg.replace("'", "\\'").replace('"', '\\"')
-        st.components.v1.html(f"""
-        <script>
-            if ('speechSynthesis' in window) {{
-                window.speechSynthesis.cancel();
-                var msg = new SpeechSynthesisUtterance("{escaped_msg}");
-                msg.rate = 1.0;
-                msg.volume = 1.0;
-                window.speechSynthesis.speak(msg);
-            }}
-        </script>
-        """, height=0)
+        vis_frame = path_analyzer.draw_overlay(frame_bgr, path_res)
+        vis_frame = detector.draw_detections(vis_frame, detections)
+        vis_rgb   = cv2.cvtColor(vis_frame, cv2.COLOR_BGR2RGB)
 
+        st.image(vis_rgb, use_column_width=True)
+
+        voice_msg = path_res.instruction
+        is_critical = False
+
+        if obstacle_insts:
+            top_obs = obstacle_insts[0]
+            if top_obs.urgency == Urgency.CRITICAL:
+                voice_msg = top_obs.message
+                is_critical = True
+            elif top_obs.urgency == Urgency.NEAR:
+                voice_msg = top_obs.message
+
+        box_class = "voice-box-critical" if is_critical else "voice-box"
+        st.markdown(f'<div class="{box_class}">📢 {voice_msg}</div>', unsafe_allow_html=True)
+
+        if auto_speak and voice_msg:
+            escaped_msg = voice_msg.replace("'", "\\'").replace('"', '\\"')
+            st.components.v1.html(f"""
+            <script>
+                if ('speechSynthesis' in window) {{
+                    window.speechSynthesis.cancel();
+                    var msg = new SpeechSynthesisUtterance("{escaped_msg}");
+                    msg.rate = 1.0;
+                    window.speechSynthesis.speak(msg);
+                }}
+            </script>
+            """, height=0)
 
 # ── Footer ─────────────────────────────────────────────────────────────────────
 st.markdown("---")
-st.caption("BlindAid v2 • Built for Visually Impaired Independent Mobility • Deployable to Streamlit Cloud")
+st.caption("BlindAid v2 • Continuous Live Tracking Powered by WebRTC & YOLOv8")

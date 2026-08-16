@@ -5,6 +5,8 @@ pyyaml
 networkx
 google-genai
 streamlit
+streamlit-webrtc
+av
 flask
 flask-cors
 gTTS
