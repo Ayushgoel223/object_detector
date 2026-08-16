@@ -110,12 +110,18 @@ function speak(text, isCritical = false) {
   if (isMuted || !text || !text.trim()) return;
 
   const now = Date.now();
-  // Deduplicate identical non-critical messages within 2.5 seconds
-  if (text === lastSpokenText && !isCritical && (now - lastSpokenTime) < 2500) {
+
+  // If a non-critical sentence is currently being spoken on phone, let it finish naturally!
+  if (synth && synth.speaking && !isCritical) {
     return;
   }
 
-  // 1. Update Text UI
+  // Deduplicate identical non-critical messages within 3.0 seconds
+  if (text === lastSpokenText && !isCritical && (now - lastSpokenTime) < 3000) {
+    return;
+  }
+
+  // 1. Update Text UI Banner
   if (speechText) speechText.textContent = text;
   if (speechBanner) {
     if (isCritical) {
@@ -132,12 +138,14 @@ function speak(text, isCritical = false) {
   if (synth) {
     try {
       synth.resume(); // Wake up mobile Chrome/Safari audio engine
-      synth.cancel(); // Clear queue so new message speaks immediately
+
+      if (isCritical) {
+        synth.cancel(); // Interrupt only for critical emergencies!
+      }
 
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'en-US';
-      utterance.rate = 1.05;
-      utterance.pitch = 1.0;
+      utterance.rate = 1.0;
       utterance.volume = 1.0;
 
       if (availableVoices.length === 0) loadVoices();

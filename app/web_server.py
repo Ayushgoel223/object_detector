@@ -205,21 +205,15 @@ def process_frame():
         })
 
     # Decide voice instruction to return
-    voice_msg = ""
+    voice_msg = path_res.instruction
     is_critical = False
 
     top_obs = obstacle_insts[0] if obstacle_insts else None
     if top_obs and top_obs.urgency == Urgency.CRITICAL:
         voice_msg = top_obs.message
         is_critical = True
-    elif top_obs and top_obs.urgency == Urgency.NEAR:
+    elif top_obs and top_obs.urgency in (Urgency.NEAR, Urgency.FAR) and top_obs.object_label != "none":
         voice_msg = top_obs.message
-    else:
-        # Periodic path guidance
-        now = time.time()
-        if now - last_path_speech_time >= 4.0:
-            voice_msg = path_res.instruction
-            last_path_speech_time = now
 
     return jsonify({
         "width": w,
