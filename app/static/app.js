@@ -1,6 +1,6 @@
 /**
  * BlindAid Mobile Web Application Client
- * Real-time Camera Processing + Live Audio Speech Synthesis for Phone/Bluetooth
+ * Real-time Camera Processing + Robust Mobile Audio Synthesis (Web Audio Chime + Web Speech API)
  */
 
 // ── DOM Elements ─────────────────────────────────────────────────────────────
@@ -42,8 +42,51 @@ let fpsTimer          = Date.now();
 let lastSpokenText    = "";
 let lastSpokenTime    = 0;
 
-// ── Web Speech API (TTS Output on Phone / Bluetooth) ──────────────────────────
+// ── Web Audio Chime Generator ────────────────────────────────────────────────
+let audioCtx = null;
+
+function playAudioChime(isCritical = false) {
+  try {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.type = isCritical ? 'sawtooth' : 'sine';
+    osc.frequency.setValueAtTime(isCritical ? 880 : 587.33, now); // A5 or D5 tone
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + (isCritical ? 0.3 : 0.18));
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start(now);
+    osc.stop(now + (isCritical ? 0.3 : 0.18));
+  } catch (e) {
+    console.log("[Audio] WebAudio chime notice:", e);
+  }
+}
+
+// ── Web Speech API Voice Engine ──────────────────────────────────────────────
 const synth = window.speechSynthesis;
+let availableVoices = [];
+
+function loadVoices() {
+  if (synth) {
+    availableVoices = synth.getVoices();
+  }
+}
+
+if (synth) {
+  synth.onvoiceschanged = loadVoices;
+  loadVoices();
+}
 
 function unlockVoice() {
   if (isVoiceUnlocked) return;
@@ -55,23 +98,24 @@ function unlockVoice() {
     unlockBanner.textContent = "🔊 LIVE PHONE VOICE IS ACTIVE";
   }
 
-  speak("Live audio enabled. BlindAid active.", true);
+  playAudioChime(false);
+  speak("Voice audio active. Point phone camera forward.", true);
 }
 
-// Global click/touch listener to unlock mobile audio
-document.addEventListener('click', unlockVoice);
-document.addEventListener('touchstart', unlockVoice);
+// Global touch/click listener to unlock browser audio
+document.addEventListener('click', unlockVoice, { passive: true });
+document.addEventListener('touchstart', unlockVoice, { passive: true });
 
 function speak(text, isCritical = false) {
   if (isMuted || !text || !text.trim()) return;
 
   const now = Date.now();
-  // Avoid re-repeating identical non-critical message within 2.5 seconds
+  // Deduplicate identical non-critical messages within 2.5 seconds
   if (text === lastSpokenText && !isCritical && (now - lastSpokenTime) < 2500) {
     return;
   }
 
-  // Update UI text banner
+  // 1. Update Text UI
   if (speechText) speechText.textContent = text;
   if (speechBanner) {
     if (isCritical) {
@@ -81,19 +125,37 @@ function speak(text, isCritical = false) {
     }
   }
 
-  // Speak out loud on phone / bluetooth
-  if (synth) {
-    if (isCritical) {
-      synth.cancel(); // Interrupt current speech for critical alerts!
-    }
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.05;
-    utterance.pitch = 1.0;
-    utterance.volume = 1.0;
-    synth.speak(utterance);
+  // 2. Play Audio Tone Chime
+  playAudioChime(isCritical);
 
-    lastSpokenText = text;
-    lastSpokenTime = now;
+  // 3. Spoken Voice Synthesis
+  if (synth) {
+    try {
+      synth.resume(); // Wake up mobile Chrome/Safari audio engine
+      synth.cancel(); // Clear queue so new message speaks immediately
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      utterance.rate = 1.05;
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+
+      if (availableVoices.length === 0) loadVoices();
+      const preferredVoice = availableVoices.find(
+        v => v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Samantha') || v.default)
+      ) || availableVoices.find(v => v.lang.startsWith('en'));
+
+      if (preferredVoice) {
+        utterance.voice = preferredVoice;
+      }
+
+      synth.speak(utterance);
+
+      lastSpokenText = text;
+      lastSpokenTime = now;
+    } catch (err) {
+      console.error("[TTS] Speech Synthesis error:", err);
+    }
   }
 }
 
