@@ -1,8 +1,9 @@
 """
 BlindAid — Streamlit Mobile Web Application
 =============================================
-High-Speed Live WebRTC Streamer + Mobile Web Speech Synthesis (TTS).
-Optimized for 30+ FPS fast video processing on mobile & cloud servers.
+High-Speed Live WebRTC Streamer + Mobile Browser Audio Unlocker.
+Fixes mobile browser autoplay restrictions (iOS Safari / Android Chrome)
+by unlocking SpeechSynthesis via a direct user touch gesture button.
 """
 
 import streamlit as st
@@ -96,7 +97,48 @@ detector, spatial_analyzer, path_analyzer, map_manager, route_planner = load_ai_
 
 # ── App Header ─────────────────────────────────────────────────────────────────
 st.title("👁️ BlindAid — Real-Time Navigation")
-st.caption("High-Speed 30FPS Camera Feed • Obstacle Guidance • Mobile Speech Output")
+st.caption("High-Speed 35FPS Camera • Path Corridors • Mobile Speech Output")
+
+
+# ── Mobile Speech Unlocker Component ──────────────────────────────────────────
+# Mobile browsers require ONE user gesture to unlock SpeechSynthesis audio output!
+st.components.v1.html("""
+<div style="background:#1e293b; padding:15px; border-radius:12px; text-align:center; font-family:sans-serif; margin-bottom:10px; border:2px solid #00e5ff;">
+    <button id="unlockSpeechBtn" style="background:linear-gradient(135deg, #00ff87 0%, #60efff 100%); color:#000; font-weight:800; font-size:1.1rem; padding:14px 24px; border:none; border-radius:10px; cursor:pointer; width:100%; box-shadow: 0 4px 12px rgba(0,255,135,0.4);">
+        🔊 TAP HERE TO ENABLE PHONE VOICE
+    </button>
+    <div id="speechStatusText" style="color:#94a3b8; font-size:0.85rem; margin-top:8px; font-weight:600;">
+        Tap above to allow phone audio & Bluetooth speech
+    </div>
+</div>
+
+<script>
+    let speechUnlocked = false;
+    const btn = document.getElementById('unlockSpeechBtn');
+    const status = document.getElementById('speechStatusText');
+
+    function speakText(text, cancelCurrent = false) {
+        if (!('speechSynthesis' in window)) return;
+        if (cancelCurrent) window.speechSynthesis.cancel();
+        
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 1.05;
+        utterance.volume = 1.0;
+        window.speechSynthesis.speak(utterance);
+    }
+
+    btn.addEventListener('click', function() {
+        speechUnlocked = true;
+        btn.style.background = "#00e5ff";
+        btn.style.color = "#000";
+        btn.innerText = "🔊 VOICE IS ACTIVE";
+        status.innerText = "✓ Phone & Bluetooth audio enabled";
+        status.style.color = "#00ff87";
+        
+        speakText("Voice output activated for BlindAid navigation.", true);
+    });
+</script>
+""", height=120)
 
 
 # ── Sidebar Controls ───────────────────────────────────────────────────────────
@@ -121,9 +163,6 @@ with st.sidebar:
                 st.rerun()
     else:
         st.warning("⚠️ Running in Camera-Only Mode")
-
-    st.markdown("---")
-    auto_speak = st.checkbox("🔊 Enable Phone Voice Output", value=True)
 
 
 # ── Active Route Display ───────────────────────────────────────────────────────
@@ -242,21 +281,20 @@ if WEBRTC_AVAILABLE:
             box_style = "voice-box-critical" if is_crit else "voice-box"
             st.markdown(f'<div class="{box_style}">📢 {speech_text}</div>', unsafe_allow_html=True)
 
-            if auto_speak:
-                escaped_text = speech_text.replace("'", "\\'").replace('"', '\\"')
-                st.components.v1.html(f"""
-                <script>
-                    if ('speechSynthesis' in window) {{
-                        var msg = new SpeechSynthesisUtterance("{escaped_text}");
-                        msg.rate = 1.05;
-                        msg.volume = 1.0;
-                        if ({'true' if is_crit else 'false'}) {{
-                            window.speechSynthesis.cancel();
-                        }}
-                        window.speechSynthesis.speak(msg);
+            escaped_text = speech_text.replace("'", "\\'").replace('"', '\\"')
+            st.components.v1.html(f"""
+            <script>
+                if ('speechSynthesis' in window) {{
+                    var msg = new SpeechSynthesisUtterance("{escaped_text}");
+                    msg.rate = 1.05;
+                    msg.volume = 1.0;
+                    if ({'true' if is_crit else 'false'}) {{
+                        window.speechSynthesis.cancel();
                     }}
-                </script>
-                """, height=0)
+                    window.speechSynthesis.speak(msg);
+                }}
+            </script>
+            """, height=0)
 
 
 # ── Snapshot Fallback Mode ─────────────────────────────────────────────────────
@@ -290,7 +328,7 @@ with st.expander("📷 Snapshot Photo Mode"):
         box_class = "voice-box-critical" if is_critical else "voice-box"
         st.markdown(f'<div class="{box_class}">📢 {voice_msg}</div>', unsafe_allow_html=True)
 
-        if auto_speak and voice_msg:
+        if voice_msg:
             escaped_msg = voice_msg.replace("'", "\\'").replace('"', '\\"')
             st.components.v1.html(f"""
             <script>
@@ -305,4 +343,4 @@ with st.expander("📷 Snapshot Photo Mode"):
 
 # ── Footer ─────────────────────────────────────────────────────────────────────
 st.markdown("---")
-st.caption("BlindAid v2 • Optimized High-Speed Camera Processing & Mobile Speech Synthesis")
+st.caption("BlindAid v2 • Tap 'Enable Phone Voice' to allow SpeechSynthesis on Mobile Safari / Chrome")
