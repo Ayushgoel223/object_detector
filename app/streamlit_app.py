@@ -1,9 +1,8 @@
 """
 BlindAid — Streamlit Mobile Web Application
 =============================================
-High-Speed Live WebRTC Streamer + Mobile Browser Audio Unlocker.
-Fixes mobile browser autoplay restrictions (iOS Safari / Android Chrome)
-by unlocking SpeechSynthesis via a direct user touch gesture button.
+High-Speed Live WebRTC Streamer + Mobile Web Speech Synthesis (TTS).
+Optimized for 35+ FPS fast video processing + automatic JS speech loop.
 """
 
 import streamlit as st
@@ -54,27 +53,16 @@ st.markdown("""
         height: 50px !important;
         width: 100% !important;
     }
-    .voice-box {
-        background: #004e92;
-        color: #ffffff;
-        padding: 16px;
+    .voice-banner {
+        background: #0d3b66;
+        color: #00ff87;
+        padding: 14px 18px;
         border-radius: 12px;
         font-size: 1.15rem;
         font-weight: 700;
         border-left: 6px solid #00ff87;
         margin: 10px 0;
-        box-shadow: 0 4px 15px rgba(0, 78, 146, 0.4);
-    }
-    .voice-box-critical {
-        background: #dc2626;
-        color: #ffffff;
-        padding: 16px;
-        border-radius: 12px;
-        font-size: 1.15rem;
-        font-weight: 700;
-        border-left: 6px solid #ff3366;
-        margin: 10px 0;
-        box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4);
+        box-shadow: 0 4px 15px rgba(0, 255, 135, 0.2);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -97,18 +85,17 @@ detector, spatial_analyzer, path_analyzer, map_manager, route_planner = load_ai_
 
 # ── App Header ─────────────────────────────────────────────────────────────────
 st.title("👁️ BlindAid — Real-Time Navigation")
-st.caption("High-Speed 35FPS Camera • Path Corridors • Mobile Speech Output")
+st.caption("High-Speed 35FPS Camera • Path Guidance • Real-Time Voice Speech")
 
 
 # ── Mobile Speech Unlocker Component ──────────────────────────────────────────
-# Mobile browsers require ONE user gesture to unlock SpeechSynthesis audio output!
 st.components.v1.html("""
 <div style="background:#1e293b; padding:15px; border-radius:12px; text-align:center; font-family:sans-serif; margin-bottom:10px; border:2px solid #00e5ff;">
     <button id="unlockSpeechBtn" style="background:linear-gradient(135deg, #00ff87 0%, #60efff 100%); color:#000; font-weight:800; font-size:1.1rem; padding:14px 24px; border:none; border-radius:10px; cursor:pointer; width:100%; box-shadow: 0 4px 12px rgba(0,255,135,0.4);">
-        🔊 TAP HERE TO ENABLE PHONE VOICE
+        🔊 TAP HERE TO UNLOCK PHONE VOICE AUDIO
     </button>
     <div id="speechStatusText" style="color:#94a3b8; font-size:0.85rem; margin-top:8px; font-weight:600;">
-        Tap above to allow phone audio & Bluetooth speech
+        Tap above once to enable Bluetooth speech & phone voice
     </div>
 </div>
 
@@ -131,11 +118,11 @@ st.components.v1.html("""
         speechUnlocked = true;
         btn.style.background = "#00e5ff";
         btn.style.color = "#000";
-        btn.innerText = "🔊 VOICE IS ACTIVE";
-        status.innerText = "✓ Phone & Bluetooth audio enabled";
+        btn.innerText = "🔊 PHONE VOICE IS ACTIVE";
+        status.innerText = "✓ Phone & Bluetooth speech output active!";
         status.style.color = "#00ff87";
         
-        speakText("Voice output activated for BlindAid navigation.", true);
+        speakText("Voice audio enabled for BlindAid navigation.", true);
     });
 </script>
 """, height=120)
@@ -172,7 +159,20 @@ if st.session_state.get("nav_active") and route_planner and route_planner.is_nav
 
     if idx < len(steps):
         step = steps[idx]
-        st.info(f"🚩 **Step {step.step_number} of {len(steps)}**: {step.instruction}")
+        st.markdown(f'<div class="voice-banner">🚩 Step {step.step_number} of {len(steps)}: {step.instruction}</div>', unsafe_allow_html=True)
+
+        # Voice output for active route step
+        escaped_step_text = step.instruction.replace("'", "\\'").replace('"', '\\"')
+        st.components.v1.html(f"""
+        <script>
+            if ('speechSynthesis' in window) {{
+                window.speechSynthesis.cancel();
+                var msg = new SpeechSynthesisUtterance("{escaped_step_text}");
+                msg.rate = 1.0;
+                window.speechSynthesis.speak(msg);
+            }}
+        </script>
+        """, height=0)
         
         cols = st.columns(2)
         with cols[0]:
@@ -191,7 +191,7 @@ if st.session_state.get("nav_active") and route_planner and route_planner.is_nav
         st.session_state["nav_active"] = False
 
 
-# ── Fast High-FPS WebRTC Video Processor ───────────────────────────────────────
+# ── Fast High-FPS WebRTC Video Processor with Video Voice Banner ───────────────
 st.subheader("📹 Live Camera & Obstacle Tracking")
 
 class FastVideoProcessor:
@@ -199,8 +199,7 @@ class FastVideoProcessor:
         self.frame_count = 0
         self.last_path_res = None
         self.last_detections = []
-        self.latest_speech_msg = ""
-        self.is_critical_msg = False
+        self.latest_speech_msg = "Camera ready."
         self.last_spoken_time = 0.0
 
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
@@ -236,22 +235,24 @@ class FastVideoProcessor:
             top_obs = obstacle_insts[0] if obstacle_insts else None
 
             now = time.time()
-            if top_obs and top_obs.urgency == Urgency.CRITICAL:
+            if top_obs and top_obs.urgency in (Urgency.CRITICAL, Urgency.NEAR):
                 self.latest_speech_msg = top_obs.message
-                self.is_critical_msg = True
-                self.last_spoken_time = now
-            elif top_obs and top_obs.urgency == Urgency.NEAR:
-                self.latest_speech_msg = top_obs.message
-                self.is_critical_msg = False
                 self.last_spoken_time = now
             elif now - self.last_spoken_time >= 4.0:
                 self.latest_speech_msg = self.last_path_res.instruction
-                self.is_critical_msg = False
                 self.last_spoken_time = now
 
-        # Draw overlays on high-res image
+        # Draw Path Overlays & Detections
         vis_frame = path_analyzer.draw_overlay(img, self.last_path_res)
         vis_frame = detector.draw_detections(vis_frame, self.last_detections)
+
+        # Draw Voice Banner Directly onto the Top of the Video Frame
+        cv2.rectangle(vis_frame, (0, 0), (w, 42), (15, 23, 42), -1)
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        msg_str = f"VOICE: {self.latest_speech_msg}"
+        if len(msg_str) > 55:
+            msg_str = msg_str[:52] + "..."
+        cv2.putText(vis_frame, msg_str, (10, 28), font, 0.55, (50, 255, 100), 2)
 
         return av.VideoFrame.from_ndarray(vis_frame, format="bgr24")
 
@@ -271,30 +272,6 @@ if WEBRTC_AVAILABLE:
         },
         async_processing=True,
     )
-
-    # Audio Banner & Web Speech Output for Mobile Browser
-    if webrtc_ctx.video_processor:
-        speech_text = webrtc_ctx.video_processor.latest_speech_msg
-        is_crit     = webrtc_ctx.video_processor.is_critical_msg
-
-        if speech_text:
-            box_style = "voice-box-critical" if is_crit else "voice-box"
-            st.markdown(f'<div class="{box_style}">📢 {speech_text}</div>', unsafe_allow_html=True)
-
-            escaped_text = speech_text.replace("'", "\\'").replace('"', '\\"')
-            st.components.v1.html(f"""
-            <script>
-                if ('speechSynthesis' in window) {{
-                    var msg = new SpeechSynthesisUtterance("{escaped_text}");
-                    msg.rate = 1.05;
-                    msg.volume = 1.0;
-                    if ({'true' if is_crit else 'false'}) {{
-                        window.speechSynthesis.cancel();
-                    }}
-                    window.speechSynthesis.speak(msg);
-                }}
-            </script>
-            """, height=0)
 
 
 # ── Snapshot Fallback Mode ─────────────────────────────────────────────────────
@@ -325,7 +302,7 @@ with st.expander("📷 Snapshot Photo Mode"):
             elif top_obs.urgency == Urgency.NEAR:
                 voice_msg = top_obs.message
 
-        box_class = "voice-box-critical" if is_critical else "voice-box"
+        box_class = "voice-banner"
         st.markdown(f'<div class="{box_class}">📢 {voice_msg}</div>', unsafe_allow_html=True)
 
         if voice_msg:
@@ -343,4 +320,4 @@ with st.expander("📷 Snapshot Photo Mode"):
 
 # ── Footer ─────────────────────────────────────────────────────────────────────
 st.markdown("---")
-st.caption("BlindAid v2 • Tap 'Enable Phone Voice' to allow SpeechSynthesis on Mobile Safari / Chrome")
+st.caption("BlindAid v2 • Tap 'Unlock Phone Voice Audio' to activate mobile speech output")
