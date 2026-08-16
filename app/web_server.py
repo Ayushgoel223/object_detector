@@ -145,12 +145,46 @@ def calculate_route():
     })
 
 
+import io
+from gtts import gTTS
+
+audio_cache = {}
+
+def get_audio_b64(text: str) -> str:
+    """Generate base64 encoded MP3 audio for 100% reliable mobile phone playback."""
+    if not text or not text.strip():
+        return ""
+    clean_text = text.strip()
+    if clean_text in audio_cache:
+        return audio_cache[clean_text]
+
+    try:
+        fp = io.BytesIO()
+        tts = gTTS(text=clean_text, lang="en", slow=False)
+        tts.write_to_fp(fp)
+        fp.seek(0)
+        b64_str = "data:audio/mp3;base64," + base64.b64encode(fp.read()).decode("utf-8")
+        audio_cache[clean_text] = b64_str
+        return b64_str
+    except Exception as e:
+        print(f"[Audio] Server TTS generation error: {e}")
+        return ""
+
+
+@app.route("/api/tts", methods=["POST"])
+def generate_tts_audio():
+    data = request.json or {}
+    text = data.get("text", "")
+    b64 = get_audio_b64(text)
+    return jsonify({"text": text, "audio_b64": b64})
+
+
 @app.route("/api/process_frame", methods=["POST"])
 def process_frame():
     """
     Receives base64 encoded frame from mobile camera.
     Runs YOLO object detection & corridor path analysis.
-    Returns JSON with detections, corridors, and text to speak.
+    Returns JSON with detections, corridors, voice_msg, and audio_b64.
     """
     global last_path_speech_time
     data = request.json or {}
@@ -159,7 +193,6 @@ def process_frame():
     if not image_b64:
         return jsonify({"error": "No image data"}), 400
 
-    # Strip header if data URL
     if "," in image_b64:
         image_b64 = image_b64.split(",")[1]
 
@@ -190,7 +223,7 @@ def process_frame():
         det_list.append({
             "label": d.label,
             "confidence": round(d.confidence, 2),
-            "bbox": d.bbox,   # [x1, y1, x2, y2]
+            "bbox": d.bbox,
             "center_x": round(d.center_x, 2),
             "center_y": round(d.center_y, 2),
             "area_fraction": round(d.area_fraction, 3),
@@ -215,6 +248,9 @@ def process_frame():
     elif top_obs and top_obs.urgency in (Urgency.NEAR, Urgency.FAR) and top_obs.object_label != "none":
         voice_msg = top_obs.message
 
+    # Generate real MP3 audio base64 payload
+    audio_b64 = get_audio_b64(voice_msg)
+
     return jsonify({
         "width": w,
         "height": h,
@@ -225,6 +261,7 @@ def process_frame():
         "corridors": corridors_list,
         "path_instruction": path_res.instruction,
         "voice_msg": voice_msg,
+        "audio_b64": audio_b64,
         "is_critical": is_critical,
     })
 

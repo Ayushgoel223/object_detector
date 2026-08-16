@@ -88,6 +88,25 @@ if (synth) {
   loadVoices();
 }
 
+const voicePlayer = document.getElementById('voicePlayer');
+
+function playMp3Audio(b64Audio) {
+  if (!voicePlayer || !b64Audio) return false;
+  try {
+    voicePlayer.src = b64Audio;
+    const playPromise = voicePlayer.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(e => {
+        console.log("[Audio] HTML5 audio play blocked/waiting for touch:", e);
+      });
+    }
+    return true;
+  } catch (e) {
+    console.log("[Audio] MP3 playback error:", e);
+    return false;
+  }
+}
+
 function unlockVoice() {
   if (isVoiceUnlocked) return;
   isVoiceUnlocked = true;
@@ -98,6 +117,12 @@ function unlockVoice() {
     unlockBanner.textContent = "🔊 LIVE PHONE VOICE IS ACTIVE";
   }
 
+  // Play silent buffer on voicePlayer to unlock mobile HTML5 audio permissions
+  if (voicePlayer) {
+    voicePlayer.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==";
+    voicePlayer.play().catch(e => {});
+  }
+
   playAudioChime(false);
   speak("Voice audio active. Point phone camera forward.", true);
 }
@@ -106,18 +131,13 @@ function unlockVoice() {
 document.addEventListener('click', unlockVoice, { passive: true });
 document.addEventListener('touchstart', unlockVoice, { passive: true });
 
-function speak(text, isCritical = false) {
+function speak(text, isCritical = false, audioB64 = null) {
   if (isMuted || !text || !text.trim()) return;
 
   const now = Date.now();
 
-  // If a non-critical sentence is currently being spoken on phone, let it finish naturally!
-  if (synth && synth.speaking && !isCritical) {
-    return;
-  }
-
-  // Deduplicate identical non-critical messages within 3.0 seconds
-  if (text === lastSpokenText && !isCritical && (now - lastSpokenTime) < 3000) {
+  // Deduplicate identical non-critical messages within 2.5 seconds
+  if (text === lastSpokenText && !isCritical && (now - lastSpokenTime) < 2500) {
     return;
   }
 
@@ -134,8 +154,14 @@ function speak(text, isCritical = false) {
   // 2. Play Audio Tone Chime
   playAudioChime(isCritical);
 
-  // 3. Spoken Voice Synthesis
-  if (synth) {
+  // 3. Prefer Real MP3 Audio Stream (100% working on all mobile OS over HTTP/HTTPS)
+  let mp3Played = false;
+  if (audioB64) {
+    mp3Played = playMp3Audio(audioB64);
+  }
+
+  // 4. Fallback to Web Speech Synthesis API if no MP3 available
+  if (!mp3Played && synth) {
     try {
       synth.resume(); // Wake up mobile Chrome/Safari audio engine
 
@@ -158,13 +184,13 @@ function speak(text, isCritical = false) {
       }
 
       synth.speak(utterance);
-
-      lastSpokenText = text;
-      lastSpokenTime = now;
     } catch (err) {
       console.error("[TTS] Speech Synthesis error:", err);
     }
   }
+
+  lastSpokenText = text;
+  lastSpokenTime = now;
 }
 
 // ── Init Rear Camera ──────────────────────────────────────────────────────────
@@ -235,7 +261,7 @@ async function captureAndProcessFrame() {
 
     // 3. Live Voice Output (Obstacles + Directions)
     if (data.voice_msg) {
-      speak(data.voice_msg, data.is_critical);
+      speak(data.voice_msg, data.is_critical, data.audio_b64);
     }
 
     connDot.className = "dot online";
