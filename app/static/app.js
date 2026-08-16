@@ -1,6 +1,6 @@
 /**
  * BlindAid Mobile Web Application Client
- * Real-time Mobile Camera Processing + Web Speech API TTS Output
+ * Real-time Camera Processing + Live Audio Speech Synthesis for Phone/Bluetooth
  */
 
 // ── DOM Elements ─────────────────────────────────────────────────────────────
@@ -10,6 +10,7 @@ const ctx             = outputCanvas.getContext('2d');
 
 const modeBadge       = document.getElementById('modeBadge');
 const muteBtn         = document.getElementById('muteBtn');
+const unlockBanner    = document.getElementById('unlockBanner');
 const dirPill         = document.getElementById('dirPill');
 const fpsPill         = document.getElementById('fpsPill');
 const speechBanner    = document.getElementById('speechBanner');
@@ -34,6 +35,7 @@ let isProcessingFrame = false;
 let routeSteps        = [];
 let currentStepIdx    = 0;
 let isNavigating      = false;
+let isVoiceUnlocked   = false;
 
 let frameCount        = 0;
 let fpsTimer          = Date.now();
@@ -43,24 +45,43 @@ let lastSpokenTime    = 0;
 // ── Web Speech API (TTS Output on Phone / Bluetooth) ──────────────────────────
 const synth = window.speechSynthesis;
 
+function unlockVoice() {
+  if (isVoiceUnlocked) return;
+  isVoiceUnlocked = true;
+
+  if (unlockBanner) {
+    unlockBanner.style.background = "#00e5ff";
+    unlockBanner.style.color = "#000";
+    unlockBanner.textContent = "🔊 LIVE PHONE VOICE IS ACTIVE";
+  }
+
+  speak("Live audio enabled. BlindAid active.", true);
+}
+
+// Global click/touch listener to unlock mobile audio
+document.addEventListener('click', unlockVoice);
+document.addEventListener('touchstart', unlockVoice);
+
 function speak(text, isCritical = false) {
   if (isMuted || !text || !text.trim()) return;
 
   const now = Date.now();
-  // Avoid re-repeating the exact same non-critical message within 3s
-  if (text === lastSpokenText && !isCritical && (now - lastSpokenTime) < 3000) {
+  // Avoid re-repeating identical non-critical message within 2.5 seconds
+  if (text === lastSpokenText && !isCritical && (now - lastSpokenTime) < 2500) {
     return;
   }
 
   // Update UI text banner
-  speechText.textContent = text;
-  if (isCritical) {
-    speechBanner.classList.add('critical');
-  } else {
-    speechBanner.classList.remove('critical');
+  if (speechText) speechText.textContent = text;
+  if (speechBanner) {
+    if (isCritical) {
+      speechBanner.classList.add('critical');
+    } else {
+      speechBanner.classList.remove('critical');
+    }
   }
 
-  // Speak via browser TTS
+  // Speak out loud on phone / bluetooth
   if (synth) {
     if (isCritical) {
       synth.cancel(); // Interrupt current speech for critical alerts!
@@ -76,7 +97,7 @@ function speak(text, isCritical = false) {
   }
 }
 
-// ── Init Camera ──────────────────────────────────────────────────────────────
+// ── Init Rear Camera ──────────────────────────────────────────────────────────
 async function initCamera() {
   try {
     const constraints = {
@@ -96,13 +117,12 @@ async function initCamera() {
     outputCanvas.height = webcamVideo.videoHeight || 480;
 
     console.log(`[Camera] Started: ${outputCanvas.width}x${outputCanvas.height}`);
-    speak("Camera active. Point your phone forward.");
     
-    // Start processing loop
-    setInterval(captureAndProcessFrame, 150); // ~7 FPS frame processing
+    // Start continuous processing loop (~7 FPS)
+    setInterval(captureAndProcessFrame, 150);
   } catch (err) {
     console.error("[Camera] Error:", err);
-    speechText.textContent = "Camera access error. Please grant permissions.";
+    if (speechText) speechText.textContent = "Camera error. Grant camera permissions.";
     alert("Camera permission denied. Please allow camera access in browser settings.");
   }
 }
@@ -112,11 +132,11 @@ async function captureAndProcessFrame() {
   if (isProcessingFrame || !webcamVideo.videoWidth) return;
   isProcessingFrame = true;
 
-  // Render raw video to canvas first
+  // Render raw video to canvas
   ctx.drawImage(webcamVideo, 0, 0, outputCanvas.width, outputCanvas.height);
 
-  // Convert canvas frame to JPEG blob / base64
-  const imageB64 = outputCanvas.toDataURL('image/jpeg', 0.65);
+  // Convert canvas frame to base64 JPEG
+  const imageB64 = outputCanvas.toDataURL('image/jpeg', 0.60);
 
   try {
     const response = await fetch('/api/process_frame', {
@@ -128,7 +148,7 @@ async function captureAndProcessFrame() {
     if (!response.ok) throw new Error("Server error");
     const data = await response.json();
 
-    // 1. Draw Path Corridors & Bounding Boxes
+    // 1. Draw Path Corridors & Bounding Boxes on Canvas
     drawOverlay(data);
 
     // 2. Update HUD Status
@@ -143,7 +163,7 @@ async function captureAndProcessFrame() {
       fpsTimer = now;
     }
 
-    // 3. Handle Voice Instruction
+    // 3. Live Voice Output (Obstacles + Directions)
     if (data.voice_msg) {
       speak(data.voice_msg, data.is_critical);
     }
@@ -222,7 +242,6 @@ function drawOverlay(data) {
       const bw = bx2 - bx1;
       const bh = by2 - by1;
 
-      // Color by size
       const isLarge = d.area_fraction > 0.18;
       const color = isLarge ? '#ff3366' : '#00e5ff';
 
@@ -319,7 +338,7 @@ function updateNavStepUI() {
     navStepCount.textContent = `Step ${step.step_number} of ${routeSteps.length}`;
     navStepText.textContent  = step.instruction;
 
-    speak(step.instruction);
+    speak(step.instruction, true);
   } else {
     // Arrival
     navStepCount.textContent = "ARRIVED";

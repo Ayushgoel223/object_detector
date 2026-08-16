@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>BlindAid — Mobile AI Navigation</title>
+  <title>BlindAid — Mobile Real-Time Voice Navigation</title>
   <link rel="stylesheet" href="/static/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -15,14 +15,19 @@
     <div class="logo">
       <span class="icon">👁️</span>
       <span class="title">BlindAid</span>
-      <span class="badge" id="modeBadge">CAMERA</span>
+      <span class="badge" id="modeBadge">LIVE AI VOICE</span>
     </div>
     <button class="icon-btn" id="muteBtn" aria-label="Toggle Voice">🔊</button>
   </header>
 
+  <!-- Big Touch-To-Unlock Phone Voice Banner -->
+  <div id="unlockBanner" style="background: linear-gradient(135deg, #00ff87 0%, #60efff 100%); color: #000; font-weight: 800; padding: 14px; text-align: center; font-size: 1.05rem; cursor: pointer; border-bottom: 2px solid #ffffff;">
+    🔊 TAP ANYWHERE TO UNLOCK LIVE PHONE VOICE
+  </div>
+
   <!-- Navigation Info Bar -->
   <div class="nav-banner" id="navBanner" style="display: none;">
-    <div class="nav-step-count" id="navStepCount">Step 1 of 3</div>
+    <div class="nav-step-count" id="navStepCount">Step 1</div>
     <div class="nav-step-text" id="navStepText">Go straight toward Living Room</div>
     <button class="next-btn" id="nextStepBtn">NEXT STEP ➔</button>
   </div>
@@ -45,7 +50,7 @@
   <!-- Spoken Message Banner -->
   <div class="speech-banner" id="speechBanner">
     <span class="voice-icon">📢</span>
-    <span class="speech-text" id="speechText">System ready. Point camera ahead.</span>
+    <span class="speech-text" id="speechText">System ready. Tap screen to unlock voice.</span>
   </div>
 
   <!-- Bottom Control Panel -->
@@ -74,7 +79,7 @@
     <!-- Server Connection Badge -->
     <div class="connection-status">
       <span class="dot" id="connDot"></span>
-      <span class="text" id="connText">Connecting to PC server...</span>
+      <span class="text" id="connText">Connected to BlindAid Server</span>
     </div>
   </footer>
 
