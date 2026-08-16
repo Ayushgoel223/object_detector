@@ -1,0 +1,295 @@
+/* ============================================================
+   BlindAid Mobile App Design System
+   Modern High-Contrast Dark Interface for Accessibility
+   ============================================================ */
+
+:root {
+  --bg-color: #0b0f19;
+  --panel-bg: rgba(18, 26, 42, 0.92);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --primary-accent: #00e5ff;
+  --secondary-accent: #00ff87;
+  --danger-color: #ff3366;
+  --warning-color: #ff9900;
+  --text-main: #ffffff;
+  --text-muted: #94a3b8;
+  --font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Header */
+.app-header {
+  height: 54px;
+  padding: 0 16px;
+  background: var(--panel-bg);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 10;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo .title {
+  font-weight: 800;
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #ffffff 0%, var(--primary-accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 3px 7px;
+  border-radius: 20px;
+  background: rgba(0, 229, 255, 0.2);
+  color: var(--primary-accent);
+  border: 1px solid var(--primary-accent);
+}
+
+.icon-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
+  color: var(--text-main);
+  font-size: 1.2rem;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* Navigation Step Banner */
+.nav-banner {
+  background: linear-gradient(135deg, #0d3b66 0%, #004e92 100%);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid var(--secondary-accent);
+  z-index: 9;
+}
+
+.nav-step-count {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--secondary-accent);
+}
+
+.nav-step-text {
+  font-size: 0.95rem;
+  font-weight: 600;
+  flex: 1;
+  margin: 0 12px;
+  color: #ffffff;
+}
+
+.next-btn {
+  background: var(--secondary-accent);
+  color: #000000;
+  font-weight: 800;
+  font-size: 0.75rem;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* Viewport Container */
+.viewport-container {
+  flex: 1;
+  position: relative;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+#webcam {
+  display: none;
+}
+
+#outputCanvas {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Overlay Pills */
+.status-overlay {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.direction-pill {
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  border: 1.5px solid var(--secondary-accent);
+  color: var(--secondary-accent);
+  font-weight: 800;
+  font-size: 0.85rem;
+  padding: 6px 14px;
+  border-radius: 30px;
+}
+
+.fps-pill {
+  background: rgba(0, 0, 0, 0.65);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  padding: 6px 10px;
+  border-radius: 30px;
+}
+
+/* Speech Banner */
+.speech-banner {
+  background: rgba(15, 23, 42, 0.95);
+  border-top: 1px solid var(--glass-border);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  z-index: 8;
+}
+
+.speech-banner.critical {
+  background: rgba(220, 38, 38, 0.95);
+  color: #ffffff;
+  animation: pulse-red 1s infinite alternate;
+}
+
+@keyframes pulse-red {
+  0% { background: rgba(220, 38, 38, 0.95); }
+  100% { background: rgba(185, 28, 28, 1); }
+}
+
+/* Control Panel */
+.control-panel {
+  background: var(--panel-bg);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--glass-border);
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 10;
+}
+
+.selectors-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.input-group label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+}
+
+.input-group select {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--glass-border);
+  color: var(--text-main);
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+}
+
+.action-buttons-row {
+  display: flex;
+  gap: 10px;
+}
+
+.primary-btn {
+  flex: 1;
+  background: linear-gradient(135deg, #00c6ff 0%, #0072ff 100%);
+  color: #ffffff;
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 0.95rem;
+  padding: 12px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(0, 198, 255, 0.3);
+}
+
+.secondary-btn {
+  background: rgba(255, 51, 102, 0.15);
+  color: var(--danger-color);
+  border: 1px solid var(--danger-color);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 12px 18px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.connection-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.connection-status .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #e2e8f0;
+}
+
+.connection-status .dot.online {
+  background: var(--secondary-accent);
+  box-shadow: 0 0 6px var(--secondary-accent);
+}

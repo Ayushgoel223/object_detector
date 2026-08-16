@@ -1,0 +1,11 @@
+ultralytics
+opencv-python-headless
+pillow
+pyyaml
+networkx
+google-genai
+streamlit
+flask
+flask-cors
+gTTS
+pyttsx3

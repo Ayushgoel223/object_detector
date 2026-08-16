@@ -1,0 +1,21 @@
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# Environment Variables & Secrets (Keep your Gemini API key safe)
+.env
+
+# Python Cache & Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Temporary TTS Files
+_blindaid*.mp3
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

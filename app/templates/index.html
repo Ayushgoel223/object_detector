@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>BlindAid — Mobile AI Navigation</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header class="app-header">
+    <div class="logo">
+      <span class="icon">👁️</span>
+      <span class="title">BlindAid</span>
+      <span class="badge" id="modeBadge">CAMERA</span>
+    </div>
+    <button class="icon-btn" id="muteBtn" aria-label="Toggle Voice">🔊</button>
+  </header>
+
+  <!-- Navigation Info Bar -->
+  <div class="nav-banner" id="navBanner" style="display: none;">
+    <div class="nav-step-count" id="navStepCount">Step 1 of 3</div>
+    <div class="nav-step-text" id="navStepText">Go straight toward Living Room</div>
+    <button class="next-btn" id="nextStepBtn">NEXT STEP ➔</button>
+  </div>
+
+  <!-- Main Viewport -->
+  <main class="viewport-container">
+    <!-- Camera Video (Hidden, processed to Canvas) -->
+    <video id="webcam" autoplay playsinline muted></video>
+
+    <!-- Display Canvas with Overlay -->
+    <canvas id="outputCanvas"></canvas>
+
+    <!-- Live Status Pill Overlay -->
+    <div class="status-overlay">
+      <div class="direction-pill" id="dirPill">FORWARD</div>
+      <div class="fps-pill" id="fpsPill">-- FPS</div>
+    </div>
+  </main>
+
+  <!-- Spoken Message Banner -->
+  <div class="speech-banner" id="speechBanner">
+    <span class="voice-icon">📢</span>
+    <span class="speech-text" id="speechText">System ready. Point camera ahead.</span>
+  </div>
+
+  <!-- Bottom Control Panel -->
+  <footer class="control-panel">
+    <div class="selectors-row">
+      <div class="input-group">
+        <label for="startLocSelect">START</label>
+        <select id="startLocSelect">
+          <option value="">-- Current Location --</option>
+        </select>
+      </div>
+
+      <div class="input-group">
+        <label for="destLocSelect">DESTINATION</label>
+        <select id="destLocSelect">
+          <option value="">-- Go To --</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="action-buttons-row">
+      <button class="primary-btn start-nav-btn" id="startNavBtn">🚀 START ROUTE</button>
+      <button class="secondary-btn cancel-nav-btn" id="cancelNavBtn" style="display: none;">❌ CANCEL</button>
+    </div>
+
+    <!-- Server Connection Badge -->
+    <div class="connection-status">
+      <span class="dot" id="connDot"></span>
+      <span class="text" id="connText">Connecting to PC server...</span>
+    </div>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

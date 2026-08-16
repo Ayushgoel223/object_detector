@@ -1,0 +1,155 @@
+# ============================================================
+# BlindAid Configuration
+# AI Navigation Assistant for Visually Impaired
+# ============================================================
+
+# ----------------------------
+# Gemini API (for map parsing)
+# ----------------------------
+# Add your key to the .env file as: GEMINI_API_KEY=your_key_here
+# Get a FREE key at: https://aistudio.google.com/app/apikey
+
+# ----------------------------
+# Navigation Settings
+# ----------------------------
+navigation:
+  map_image: "data/floorplan.jpg"   # Default floor plan path
+  step_repeat_interval: 6.0          # Repeat nav instruction every N seconds
+
+# ----------------------------
+# Model Settings
+# ----------------------------
+model:
+  weights: "yolov8n.pt"          # Nano model - best for CPU (auto-downloads on first run)
+  confidence_threshold: 0.45     # Default minimum confidence
+  iou_threshold: 0.5             # NMS IoU threshold
+  image_size: 640                # Inference image size (pixels)
+  device: "cpu"                  # Use CPU (set to "0" if you ever get a GPU)
+
+  # Per-class confidence overrides (higher = stricter, fewer false positives)
+  # Classes prone to false positives get a higher threshold
+  class_confidence_overrides:
+    0:  0.68   # obstacle - prevents false detections of clothes/reflections/posters
+    14: 0.75   # bird   - often confused with shadows/decor
+    15: 0.75   # cat    - often confused with clothes, walls, photos
+    16: 0.72   # dog    - sometimes confused with bags/furniture
+    17: 0.72   # horse
+    18: 0.72   # sheep
+    19: 0.72   # cow
+
+  # Temporal filter: object must appear in N consecutive frames before announcing
+  # Prevents false positives from single-frame noise
+  temporal_filter_frames: 4
+
+# ----------------------------
+# Navigation-Relevant Classes
+# (COCO dataset class IDs)
+# ----------------------------
+# Only these will trigger voice alerts
+active_classes:
+  - 0    # person
+  - 1    # bicycle
+  - 2    # car
+  - 3    # motorcycle
+  - 5    # bus
+  - 7    # truck
+  - 9    # traffic light
+  - 11   # stop sign
+  - 13   # bench
+  - 15   # cat
+  - 16   # dog
+  - 24   # backpack
+  - 26   # handbag
+  - 28   # suitcase
+  - 56   # chair
+  - 57   # couch
+  - 58   # potted plant
+  - 59   # bed
+  - 60   # dining table
+  - 62   # tv
+  - 63   # laptop
+  - 67   # cell phone
+  - 73   # book
+  - 75   # vase
+  - 76   # scissors
+  - 77   # teddy bear
+
+# ----------------------------
+# Spatial Analysis Settings
+# ----------------------------
+spatial:
+  # Horizontal zone boundaries (as fraction of frame width)
+  left_zone_end: 0.38          # 0 to 38% = LEFT
+  right_zone_start: 0.62       # 62% to 100% = RIGHT
+  # center = 38% to 62%
+
+  # Object size thresholds (as fraction of total frame area)
+  critical_size: 0.18          # >18% of frame = STOP immediately
+  near_size: 0.07              # 7-18% = WARNING, object is close
+  far_size: 0.01               # <1% = safe, don't announce
+
+# ----------------------------
+# Path Analyzer Settings
+# ----------------------------
+path:
+  # Frame is divided into 3 vertical corridors (left/center/right)
+  # and 3 horizontal bands (top/mid/bottom)
+  # Bottom 2/3 of frame is the "walkable zone" for path scoring
+  walkable_zone_top: 0.35      # Top of walkable zone (fraction from top)
+
+  # Blockage score thresholds per corridor (0=clear, 1=fully blocked)
+  corridor_blocked_threshold: 0.25   # Above this = corridor is blocked
+  corridor_caution_threshold: 0.10   # Above this = caution
+
+  # Overlay visual settings
+  overlay_alpha: 0.30          # Transparency of path overlay (0=invisible, 1=solid)
+  show_path_overlay: true      # Draw colored path corridors on screen
+
+  # Path voice announcement interval (seconds) - separate from obstacle alerts
+  path_announce_interval: 4.0
+
+# ----------------------------
+# Voice Assistant Settings
+# ----------------------------
+voice:
+  engine: "pyttsx3"            # "pyttsx3" (offline) or "gtts" (online)
+  rate: 165                    # Speech rate (words per minute)
+  volume: 1.0                  # 0.0 to 1.0
+  voice_gender: "male"         # "male" or "female" (system dependent)
+
+  # Rate limiting - prevents audio spam
+  min_interval_seconds: 2.5    # Min time between any two announcements
+  critical_interval_seconds: 0.8  # Min time for CRITICAL alerts (overrides above)
+  max_queue_size: 2            # Max pending announcements in queue
+
+# ----------------------------
+# Camera / Video Settings
+# ----------------------------
+camera:
+  source: 0                    # 0 = default webcam, or path to video file
+  target_fps: 15               # Target inference framerate
+  display_overlay: true        # Show bounding box window (set false for headless)
+  overlay_width: 960
+  overlay_height: 540
+
+# ----------------------------
+# Priority Rules
+# (higher priority = announced first)
+# ----------------------------
+priority:
+  critical_objects:            # Always announce immediately
+    - "car"
+    - "truck"
+    - "bus"
+    - "motorcycle"
+  high_objects:
+    - "person"
+    - "bicycle"
+    - "dog"
+    - "stop sign"
+    - "traffic light"
+  medium_objects:
+    - "chair"
+    - "bench"
+    - "potted plant"
+    - "dining table"

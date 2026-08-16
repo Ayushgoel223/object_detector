@@ -1,0 +1,105 @@
+{
+  "building_name": "184 Nickel Hi Ave",
+  "locations": [
+    {
+      "id": "entrance",
+      "name": "Entrance",
+      "type": "entrance",
+      "aliases": ["main entrance", "front door", "entry", "foyer", "doorway"],
+      "description": "Main entrance of the house."
+    },
+    {
+      "id": "living_room",
+      "name": "Living Room",
+      "type": "room",
+      "aliases": ["living area", "hall", "main room", "lounge"],
+      "description": "Large central living room area."
+    },
+    {
+      "id": "primary_bedroom",
+      "name": "Primary Bedroom",
+      "type": "room",
+      "aliases": ["master bedroom", "bedroom", "main bedroom", "bed room", "bedroom 1", "bedroom1"],
+      "description": "Primary bedroom adjacent to the bath."
+    },
+    {
+      "id": "bath",
+      "name": "Bath",
+      "type": "bathroom",
+      "aliases": ["bathroom", "washroom", "toilet", "restroom", "wc"],
+      "description": "Bathroom connected to the primary bedroom and hallway."
+    },
+    {
+      "id": "kitchen",
+      "name": "Kitchen",
+      "type": "room",
+      "aliases": ["dining", "cooking area", "pantry"],
+      "description": "Kitchen area at the upper right."
+    },
+    {
+      "id": "balcony",
+      "name": "Balcony",
+      "type": "exit",
+      "aliases": ["patio", "deck", "veranda", "outside balcony"],
+      "description": "Balcony along the right side of the floor plan."
+    },
+    {
+      "id": "stairs",
+      "name": "Stairs",
+      "type": "stairs",
+      "aliases": ["staircase", "steps", "stairway"],
+      "description": "Outdoor staircase on the left side near the entrance."
+    }
+  ],
+  "connections": [
+    {
+      "from": "stairs",
+      "to": "entrance",
+      "distance_steps": 5,
+      "turn_direction": "straight",
+      "landmark_hint": "Enter through the front door"
+    },
+    {
+      "from": "entrance",
+      "to": "living_room",
+      "distance_steps": 8,
+      "turn_direction": "straight",
+      "landmark_hint": "Step forward into the open living room"
+    },
+    {
+      "from": "living_room",
+      "to": "primary_bedroom",
+      "distance_steps": 12,
+      "turn_direction": "left",
+      "landmark_hint": "Turn left and pass through the bedroom door"
+    },
+    {
+      "from": "primary_bedroom",
+      "to": "bath",
+      "distance_steps": 6,
+      "turn_direction": "right",
+      "landmark_hint": "Bathroom door is on your right inside the bedroom hallway"
+    },
+    {
+      "from": "living_room",
+      "to": "kitchen",
+      "distance_steps": 14,
+      "turn_direction": "straight",
+      "landmark_hint": "Walk straight across the living room to the kitchen"
+    },
+    {
+      "from": "living_room",
+      "to": "balcony",
+      "distance_steps": 15,
+      "turn_direction": "right",
+      "landmark_hint": "Double doors leading to the balcony on the far right wall"
+    },
+    {
+      "from": "kitchen",
+      "to": "balcony",
+      "distance_steps": 8,
+      "turn_direction": "right",
+      "landmark_hint": "Exit kitchen towards the balcony"
+    }
+  ]
+}
