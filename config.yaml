@@ -21,33 +21,27 @@ navigation:
 # ----------------------------
 model:
   weights: "yolov8n.pt"          # Nano model - best for CPU (auto-downloads on first run)
-  confidence_threshold: 0.45     # Default minimum confidence
-  iou_threshold: 0.5             # NMS IoU threshold
+  confidence_threshold: 0.38     # Minimum confidence for indoor mobile detection
+  iou_threshold: 0.45            # NMS IoU threshold
   image_size: 640                # Inference image size (pixels)
   device: "cpu"                  # Use CPU (set to "0" if you ever get a GPU)
 
-  # Per-class confidence overrides (higher = stricter, fewer false positives)
-  # Classes prone to false positives get a higher threshold
+  # Per-class confidence overrides (balanced threshold)
   class_confidence_overrides:
-    0:  0.68   # obstacle - prevents false detections of clothes/reflections/posters
-    14: 0.75   # bird   - often confused with shadows/decor
-    15: 0.75   # cat    - often confused with clothes, walls, photos
-    16: 0.72   # dog    - sometimes confused with bags/furniture
-    17: 0.72   # horse
-    18: 0.72   # sheep
-    19: 0.72   # cow
+    0:  0.42   # obstacle / person
+    15: 0.60   # cat
+    16: 0.60   # dog
 
-  # Temporal filter: object must appear in N consecutive frames before announcing
-  # Prevents false positives from single-frame noise
-  temporal_filter_frames: 4
+  # Temporal filter: set to 1 for instant response on mobile frames
+  temporal_filter_frames: 1
 
 # ----------------------------
 # Navigation-Relevant Classes
 # (COCO dataset class IDs)
 # ----------------------------
-# Only these will trigger voice alerts
+# Only these will trigger voice alerts & bounding boxes
 active_classes:
-  - 0    # person
+  - 0    # obstacle / person
   - 1    # bicycle
   - 2    # car
   - 3    # motorcycle
@@ -61,8 +55,15 @@ active_classes:
   - 24   # backpack
   - 26   # handbag
   - 28   # suitcase
+  - 39   # bottle
   - 56   # chair
   - 57   # couch
+  - 58   # potted plant
+  - 59   # bed
+  - 60   # dining table
+  - 62   # tv
+  - 63   # laptop
+  - 67   # cell phone
   - 58   # potted plant
   - 59   # bed
   - 60   # dining table

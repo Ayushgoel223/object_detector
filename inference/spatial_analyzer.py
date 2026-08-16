@@ -64,8 +64,12 @@ class SpatialAnalyzer:
             print(inst.message)
     """
 
-    # Objects that must ALWAYS be mentioned, regardless of size
-    ALWAYS_ANNOUNCE = {"car", "truck", "bus", "motorcycle", "stop sign", "traffic light"}
+    # Objects that must ALWAYS be announced to the visually impaired user
+    ALWAYS_ANNOUNCE = {
+        "obstacle", "person", "chair", "couch", "table", "dining table", "bed",
+        "bottle", "laptop", "tv", "bench", "backpack", "suitcase", "door", "stairs",
+        "potted plant", "cell phone", "car", "truck", "bus", "motorcycle", "stop sign"
+    }
 
     def __init__(self, config_path: str = "config.yaml"):
         config_path = Path(config_path)
@@ -105,8 +109,6 @@ class SpatialAnalyzer:
             urgency = self._get_urgency(det.area_fraction, label)
 
             if urgency == Urgency.SAFE:
-                continue
-            if urgency == Urgency.FAR and label not in self.ALWAYS_ANNOUNCE:
                 continue
 
             dedup_key = f"{label}_{zone.value}"

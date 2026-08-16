@@ -127,9 +127,9 @@ function unlockVoice() {
   speak("Voice audio active. Point phone camera forward.", true);
 }
 
-// Global touch/click listener to unlock browser audio
-document.addEventListener('click', unlockVoice, { passive: true });
-document.addEventListener('touchstart', unlockVoice, { passive: true });
+// Global touch/click listener in CAPTURE phase to guarantee unlocking mobile audio
+window.addEventListener('click', unlockVoice, true);
+window.addEventListener('touchstart', unlockVoice, true);
 
 function speak(text, isCritical = false, audioB64 = null) {
   if (isMuted || !text || !text.trim()) return;
