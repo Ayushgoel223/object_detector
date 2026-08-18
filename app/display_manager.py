@@ -110,8 +110,15 @@ class DisplayManager:
         if result.instructions:
             top_inst = result.instructions[0]
             self._nav_history.appendleft(top_inst.message)
+        
+        # Add all detected OCR text (and highlight navigation events)
+        for r in result.ocr_results:
+            msg = f"[{r.zone.upper()}] {r.text} ({r.confidence:.0%})"
+            if msg not in self._ocr_history:
+                self._ocr_history.appendleft(msg)
         for ev in result.text_events:
-            self._ocr_history.appendleft(ev.message)
+            if ev.message not in self._ocr_history:
+                self._ocr_history.appendleft(f"► {ev.message}")
 
         # Draw panels using PIL (better font quality)
         if PIL_AVAILABLE:

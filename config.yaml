@@ -38,8 +38,8 @@ display:
 ocr:
   enabled:              true
   engine:               "auto"    # "auto" = CRNN if trained, else EasyOCR
-  min_confidence:       0.45      # Min confidence to accept OCR result
-  scan_interval_frames: 10        # Run OCR every N frames (CPU budget)
+  min_confidence:       0.35      # Min confidence to accept OCR result
+  scan_interval_frames: 3         # Run OCR every 3 frames for fast text reading
   fuzzy_threshold:      80        # Minimum rapidfuzz score for word matching
 
 # ----------------------------
