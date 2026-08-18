@@ -105,17 +105,18 @@ jobs:
         env:
           ROBOFLOW_API_KEY: ${{ secrets.ROBOFLOW_API_KEY }}
         run: |
-          python training/internet_fetcher.py --source roboflow --limit 3 || true
-          python training/internet_fetcher.py --source openimages --limit 50 || true
+          python training/internet_fetcher.py --source roboflow --limit 5 || true
+          python training/internet_fetcher.py --source openimages --limit 100 || true
+          python training/internet_fetcher.py --source ocr || true
 
-      - name: Run Phase 1 supervised training
+      - name: Run Phase 1 supervised training (YOLO + CRNN OCR)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: |
           python training/phase1_supervised.py \
-            --task yolo \
-            --epochs 30 \
+            --task all \
+            --epochs 50 \
             --batch 8 \
             --device cpu
 
@@ -131,11 +132,19 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: python cloud/model_registry.py --action upload --phase supervised
 
-      - name: Log training run to cloud DB
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: python cloud/cloud_db.py --action log_training --phase supervised
+      - name: Update daily GitHub progress log
+        run: |
+          mkdir -p training
+          echo "## Daily Autonomous Training Log — $(date -u)" >> training/DAILY_LOG.md
+          echo "- Model Improved: ${{ steps.eval.outputs.improved }}" >> training/DAILY_LOG.md
+          echo "- Timestamp: $(date -u)" >> training/DAILY_LOG.md
+          echo "" >> training/DAILY_LOG.md
+
+      - name: Commit daily progress to GitHub repo
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Auto-train: Daily progress update [$(date -u +'%Y-%m-%d')]"
+          file_pattern: "training/DAILY_LOG.md models/.last_metrics.json"
 
   # ── Phase 2: Unsupervised Clustering ──────────────────────────
   train_unsupervised:
