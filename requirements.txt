@@ -1,13 +1,66 @@
-ultralytics
+# ============================================================
+# BlindAid v2 — Requirements
+# ============================================================
+
+# Core detection & vision
+ultralytics>=8.0
 opencv-python-headless
-pillow
+pillow>=9.0
 pyyaml
+numpy
+
+# CNN / Deep Learning (OCR + RL + Scene Encoding)
+torch
+torchvision
+# GPU users: replace above two lines with:
+# torch+cu118  (from https://download.pytorch.org/whl/cu118)
+
+# OCR — primary CNN model (torch above), fallback engine
+easyocr
+
+# Text fuzzy matching (OCR word dynamics)
+rapidfuzz
+
+# Database
+mysql-connector-python
+PyMySQL
+SQLAlchemy
+
+# Training — internet data fetching
+yt-dlp           # YouTube video downloader
+requests
+tqdm
+
+# Training — Roboflow datasets
+roboflow
+
+# Training — Open Images (use ONE of):
+fiftyone         # Recommended (handles Open Images v7 cleanly)
+# openimages     # Alternative if fiftyone is too heavy
+
+# Training — augmentation & ML utilities
+albumentations
+scikit-learn
+scipy
+
+# Reinforcement Learning
+gymnasium
+stable-baselines3  # optional: for PPO/SAC baseline comparison
+
+# Visualization & metrics
+matplotlib
+tensorboard
+
+# Navigation & routing
 networkx
-google-genai
-streamlit
-streamlit-webrtc
-av
+
+# Web (for dashboard)
 flask
 flask-cors
-gTTS
-pyttsx3
+streamlit
+
+# Cloud / API
+google-genai
+
+# Utilities
+python-dotenv

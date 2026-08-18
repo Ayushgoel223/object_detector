@@ -1,47 +1,72 @@
 # ============================================================
-# BlindAid Configuration
-# AI Navigation Assistant for Visually Impaired
+# BlindAid v2 Configuration
+# CNN-OCR | 3-Phase ML | MySQL | Multi-thread Pipeline
 # ============================================================
 
 # ----------------------------
-# Gemini API (for map parsing)
+# Database Settings
 # ----------------------------
-# Add your key to the .env file as: GEMINI_API_KEY=your_key_here
-# Get a FREE key at: https://aistudio.google.com/app/apikey
+database:
+  host:                "127.0.0.1"
+  port:                3306
+  user:                "root"
+  password:            ""         # Set your MySQL password here
+  db_name:             "blindaid"
+  use_sqlite_fallback: true       # Use SQLite if MySQL unreachable (dev mode)
 
 # ----------------------------
-# Navigation Settings
+# Pipeline Settings
 # ----------------------------
-navigation:
-  map_image: "data/floorplan.jpg"   # Default floor plan path
-  step_repeat_interval: 6.0          # Repeat nav instruction every N seconds
+pipeline:
+  camera_queue_size:   3    # Bounded frame queue (drops oldest if full)
+  result_queue_size:   5    # Bounded result queue
+  inference_threads:   1    # Number of inference workers (1 for CPU)
+
+# ----------------------------
+# Display Settings (replaces voice)
+# ----------------------------
+display:
+  show_nav_panel:       true   # Bottom navigation instruction strip
+  show_ocr_sidebar:     true   # Right-side OCR text panel
+  nav_panel_lines:      3      # Max nav instructions shown
+  ocr_sidebar_lines:    7      # Max OCR entries shown
+  show_top_bar:         true   # Status bar (FPS, DB, RL action)
+
+# ----------------------------
+# OCR Settings
+# ----------------------------
+ocr:
+  enabled:              true
+  engine:               "auto"    # "auto" = CRNN if trained, else EasyOCR
+  min_confidence:       0.45      # Min confidence to accept OCR result
+  scan_interval_frames: 10        # Run OCR every N frames (CPU budget)
+  fuzzy_threshold:      80        # Minimum rapidfuzz score for word matching
 
 # ----------------------------
 # Model Settings
 # ----------------------------
 model:
-  weights: "yolov8n.pt"          # Nano model - best for CPU (auto-downloads on first run)
-  confidence_threshold: 0.38     # Minimum confidence for indoor mobile detection
-  iou_threshold: 0.45            # NMS IoU threshold
-  image_size: 640                # Inference image size (pixels)
-  device: "cpu"                  # Use CPU (set to "0" if you ever get a GPU)
+  weights:               "yolov8n.pt"   # Base YOLO; override with custom model below
+  custom_weights:        "models/blindaid_supervised.pt"  # Fine-tuned model (when available)
+  confidence_threshold:  0.38
+  iou_threshold:         0.45
+  image_size:            640
+  device:                "cpu"          # Use "0" for GPU
 
-  # Per-class confidence overrides (balanced threshold)
+  # Per-class confidence overrides
   class_confidence_overrides:
-    0:  0.42   # obstacle / person
+    0:  0.42   # person
     15: 0.60   # cat
     16: 0.60   # dog
 
-  # Temporal filter: set to 1 for instant response on mobile frames
+  # Temporal filter (1 = instant; 3 = needs 3 frames to confirm)
   temporal_filter_frames: 1
 
 # ----------------------------
-# Navigation-Relevant Classes
-# (COCO dataset class IDs)
+# Navigation-Relevant COCO Classes
 # ----------------------------
-# Only these will trigger voice alerts & bounding boxes
 active_classes:
-  - 0    # obstacle / person
+  - 0    # person
   - 1    # bicycle
   - 2    # car
   - 3    # motorcycle
@@ -64,93 +89,153 @@ active_classes:
   - 62   # tv
   - 63   # laptop
   - 67   # cell phone
-  - 58   # potted plant
-  - 59   # bed
-  - 60   # dining table
-  - 62   # tv
-  - 63   # laptop
-  - 67   # cell phone
   - 73   # book
   - 75   # vase
-  - 76   # scissors
-  - 77   # teddy bear
+
+# ----------------------------
+# Custom Classes (after fine-tuning)
+# These extend COCO classes:
+# ----------------------------
+custom_classes:
+  - "door"
+  - "stairs"
+  - "elevator"
+  - "exit_sign"
+  - "ramp"
+  - "sign"
 
 # ----------------------------
 # Spatial Analysis Settings
 # ----------------------------
 spatial:
-  # Horizontal zone boundaries (as fraction of frame width)
-  left_zone_end: 0.38          # 0 to 38% = LEFT
-  right_zone_start: 0.62       # 62% to 100% = RIGHT
-  # center = 38% to 62%
-
-  # Object size thresholds (as fraction of total frame area)
-  critical_size: 0.18          # >18% of frame = STOP immediately
-  near_size: 0.07              # 7-18% = WARNING, object is close
-  far_size: 0.01               # <1% = safe, don't announce
+  left_zone_end:       0.38
+  right_zone_start:    0.62
+  critical_size:       0.18
+  near_size:           0.07
+  far_size:            0.01
 
 # ----------------------------
 # Path Analyzer Settings
 # ----------------------------
 path:
-  # Frame is divided into 3 vertical corridors (left/center/right)
-  # and 3 horizontal bands (top/mid/bottom)
-  # Bottom 2/3 of frame is the "walkable zone" for path scoring
-  walkable_zone_top: 0.35      # Top of walkable zone (fraction from top)
-
-  # Blockage score thresholds per corridor (0=clear, 1=fully blocked)
-  corridor_blocked_threshold: 0.25   # Above this = corridor is blocked
-  corridor_caution_threshold: 0.10   # Above this = caution
-
-  # Overlay visual settings
-  overlay_alpha: 0.30          # Transparency of path overlay (0=invisible, 1=solid)
-  show_path_overlay: true      # Draw colored path corridors on screen
-
-  # Path voice announcement interval (seconds) - separate from obstacle alerts
-  path_announce_interval: 4.0
-
-# ----------------------------
-# Voice Assistant Settings
-# ----------------------------
-voice:
-  engine: "pyttsx3"            # "pyttsx3" (offline) or "gtts" (online)
-  rate: 165                    # Speech rate (words per minute)
-  volume: 1.0                  # 0.0 to 1.0
-  voice_gender: "male"         # "male" or "female" (system dependent)
-
-  # Rate limiting - prevents audio spam
-  min_interval_seconds: 2.5    # Min time between any two announcements
-  critical_interval_seconds: 0.8  # Min time for CRITICAL alerts (overrides above)
-  max_queue_size: 2            # Max pending announcements in queue
+  walkable_zone_top:          0.35
+  corridor_blocked_threshold: 0.25
+  corridor_caution_threshold: 0.10
+  overlay_alpha:              0.30
+  show_path_overlay:          true
+  path_announce_interval:     4.0
 
 # ----------------------------
 # Camera / Video Settings
 # ----------------------------
 camera:
-  source: 0                    # 0 = default webcam, or path to video file
-  target_fps: 15               # Target inference framerate
-  display_overlay: true        # Show bounding box window (set false for headless)
-  overlay_width: 960
-  overlay_height: 540
+  source:           0        # 0 = default webcam
+  target_fps:       30       # Target camera framerate
+  display_overlay:  true     # Show OpenCV window
+  overlay_width:    960
+  overlay_height:   540
 
 # ----------------------------
 # Priority Rules
-# (higher priority = announced first)
 # ----------------------------
 priority:
-  critical_objects:            # Always announce immediately
+  critical_objects:
     - "car"
     - "truck"
     - "bus"
     - "motorcycle"
+    - "door"          # new custom class
+    - "stairs"        # new custom class
   high_objects:
     - "person"
     - "bicycle"
     - "dog"
     - "stop sign"
     - "traffic light"
+    - "exit_sign"     # new custom class
   medium_objects:
     - "chair"
     - "bench"
     - "potted plant"
     - "dining table"
+    - "ramp"          # new custom class
+
+# ----------------------------
+# Reinforcement Learning (Phase 3)
+# ----------------------------
+rl:
+  enabled:        false     # Set true after Phase 3 training
+  model_path:     "models/rl_agent.pt"
+  epsilon:        0.05      # Exploration rate during inference (exploit mostly)
+  gamma:          0.99
+  learning_rate:  1e-4
+
+# ----------------------------
+# Training Pipeline Settings
+# ----------------------------
+training:
+  # Phase 1: Supervised
+  phase1:
+    epochs:          50
+    batch_size:      8      # CPU-safe batch size
+    image_size:      640
+    augment:         true
+    output_model:    "models/blindaid_supervised.pt"
+
+  # Phase 2: Unsupervised
+  phase2:
+    simclr_epochs:   10
+    scene_enc_epochs: 15
+    n_clusters:      20
+    dbscan_eps:      0.5
+
+  # Phase 3: RL
+  phase3:
+    episodes:        500
+    buffer_size:     50000
+    target_update:   500
+    batch_size:      64
+
+# ----------------------------
+# Internet Data Fetching
+# ----------------------------
+data_fetch:
+  youtube:
+    enabled:       true
+    max_videos:    5
+    max_duration:  300       # Max video length in seconds
+    queries:
+      - "indoor navigation first person"
+      - "blind person walking indoor"
+      - "shopping mall corridor walk"
+
+  roboflow:
+    enabled:       true
+    api_key:       ""        # Optional; public datasets work without key
+    datasets:
+      - "doors"
+      - "stairs"
+      - "exit_signs"
+
+  openimages:
+    enabled:       true
+    max_samples:   200
+    classes:
+      - "Door"
+      - "Stairs"
+      - "Person"
+      - "Chair"
+      - "Traffic sign"
+
+  ocr_datasets:
+    enabled:       true
+    datasets:
+      - "iiit5k"
+      - "svt"
+
+# ----------------------------
+# Navigation Settings
+# ----------------------------
+navigation:
+  map_image:             "data/floorplan.jpg"
+  step_repeat_interval:  6.0

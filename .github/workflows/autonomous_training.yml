@@ -1,0 +1,229 @@
+# ============================================================
+# BlindAid — Cloud Continuous Training
+# ============================================================
+# When your laptop is OFF, this GitHub Actions workflow runs
+# training on GitHub's free cloud servers automatically.
+#
+# Schedule: Every day at midnight UTC (5:30 AM IST)
+# Free quota: 2,000 minutes/month (GitHub Free plan)
+#
+# Setup:
+#   1. Push this repo to GitHub (public or private)
+#   2. Add these GitHub Secrets in Settings → Secrets:
+#      - HF_TOKEN         : HuggingFace access token (free at hf.co)
+#      - SUPABASE_URL     : Your Supabase project URL (free at supabase.com)
+#      - SUPABASE_KEY     : Supabase anon key
+#      - ROBOFLOW_API_KEY : Optional, for dataset fetching
+# ============================================================
+
+name: BlindAid Autonomous Training
+
+on:
+  schedule:
+    # Every day at midnight UTC = 5:30 AM IST
+    - cron: "0 0 * * *"
+    # Also run every 6 hours for Phase 2 (unsupervised clustering)
+    - cron: "0 */6 * * *"
+
+  # Allow manual trigger from GitHub web UI
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: "Training phase to run"
+        required: true
+        default: "auto"
+        type: choice
+        options:
+          - auto          # Auto-decide based on schedule
+          - phase1        # Supervised YOLO + CRNN
+          - phase2        # Unsupervised clustering
+          - phase3        # RL training
+          - fetch_data    # Only fetch new internet data
+          - full          # All phases sequentially
+
+jobs:
+  # ── Decide what to run based on time/trigger ──────────────────
+  decide:
+    runs-on: ubuntu-latest
+    outputs:
+      run_phase1: ${{ steps.decide.outputs.run_phase1 }}
+      run_phase2: ${{ steps.decide.outputs.run_phase2 }}
+      run_phase3: ${{ steps.decide.outputs.run_phase3 }}
+    steps:
+      - name: Decide training phase
+        id: decide
+        run: |
+          INPUT="${{ github.event.inputs.phase }}"
+          HOUR=$(date +%H)
+
+          if [ "$INPUT" = "phase1" ] || [ "$INPUT" = "full" ]; then
+            echo "run_phase1=true" >> $GITHUB_OUTPUT
+          elif [ "$INPUT" = "auto" ] || [ -z "$INPUT" ]; then
+            # Midnight run → Phase 1 + Phase 3
+            # Every 6h run → Phase 2 only
+            if [ "$HOUR" = "00" ]; then
+              echo "run_phase1=true" >> $GITHUB_OUTPUT
+              echo "run_phase3=true" >> $GITHUB_OUTPUT
+            else
+              echo "run_phase2=true" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+          if [ "$INPUT" = "phase2" ]; then echo "run_phase2=true" >> $GITHUB_OUTPUT; fi
+          if [ "$INPUT" = "phase3" ]; then echo "run_phase3=true" >> $GITHUB_OUTPUT; fi
+
+  # ── Phase 1: Supervised Training ──────────────────────────────
+  train_supervised:
+    runs-on: ubuntu-latest
+    needs: decide
+    if: needs.decide.outputs.run_phase1 == 'true'
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install core dependencies
+        run: |
+          pip install --upgrade pip
+          pip install ultralytics torch torchvision tqdm requests pyyaml
+          pip install easyocr rapidfuzz pillow numpy opencv-python-headless
+          pip install huggingface_hub supabase yt-dlp roboflow
+
+      - name: Restore cached model from HuggingFace
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: python cloud/model_registry.py --action download --phase supervised
+
+      - name: Fetch new training data
+        env:
+          ROBOFLOW_API_KEY: ${{ secrets.ROBOFLOW_API_KEY }}
+        run: |
+          python training/internet_fetcher.py --source roboflow --limit 3 || true
+          python training/internet_fetcher.py --source openimages --limit 50 || true
+
+      - name: Run Phase 1 supervised training
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          python training/phase1_supervised.py \
+            --task yolo \
+            --epochs 30 \
+            --batch 8 \
+            --device cpu
+
+      - name: Evaluate and compare models
+        id: eval
+        run: |
+          python cloud/model_evaluator.py --compare
+          echo "improved=$(cat /tmp/model_improved.txt)" >> $GITHUB_OUTPUT
+
+      - name: Push improved model to HuggingFace
+        if: steps.eval.outputs.improved == 'true'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: python cloud/model_registry.py --action upload --phase supervised
+
+      - name: Log training run to cloud DB
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python cloud/cloud_db.py --action log_training --phase supervised
+
+  # ── Phase 2: Unsupervised Clustering ──────────────────────────
+  train_unsupervised:
+    runs-on: ubuntu-latest
+    needs: decide
+    if: needs.decide.outputs.run_phase2 == 'true'
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install torch torchvision scikit-learn numpy tqdm huggingface_hub supabase
+
+      - name: Restore features cache
+        uses: actions/cache@v4
+        with:
+          path: training/data/features/
+          key: features-${{ github.sha }}
+          restore-keys: features-
+
+      - name: Restore model backbone
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: python cloud/model_registry.py --action download --phase backbone
+
+      - name: Run SimCLR pretraining + Clustering
+        run: |
+          python training/phase2_unsupervised.py --task simclr --epochs 5 --batch 16 || true
+          python training/phase2_unsupervised.py --task cluster || true
+
+      - name: Upload backbone to HuggingFace
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: python cloud/model_registry.py --action upload --phase backbone
+
+      - name: Sync cluster centroids to cloud DB
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python cloud/cloud_db.py --action sync_clusters
+
+  # ── Phase 3: RL Training ──────────────────────────────────────
+  train_rl:
+    runs-on: ubuntu-latest
+    needs: [decide, train_supervised]
+    if: |
+      always() &&
+      needs.decide.outputs.run_phase3 == 'true'
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install torch numpy huggingface_hub supabase
+
+      - name: Restore RL checkpoint
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: python cloud/model_registry.py --action download --phase rl
+
+      - name: Continue RL training (100 episodes)
+        run: python training/phase3_rl.py --episodes 100 --load
+
+      - name: Push RL model to HuggingFace
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: python cloud/model_registry.py --action upload --phase rl
+
+  # ── Notify completion ─────────────────────────────────────────
+  notify:
+    runs-on: ubuntu-latest
+    needs: [train_supervised, train_unsupervised, train_rl]
+    if: always()
+    steps:
+      - name: Training summary
+        run: |
+          echo "=== BlindAid Cloud Training Summary ==="
+          echo "Supervised : ${{ needs.train_supervised.result }}"
+          echo "Unsupervised: ${{ needs.train_unsupervised.result }}"
+          echo "RL          : ${{ needs.train_rl.result }}"
+          echo "Time        : $(date -u)"

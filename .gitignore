@@ -3,7 +3,7 @@ venv/
 ENV/
 env/
 
-# Environment Variables & Secrets (Keep your Gemini API key safe)
+# Environment Variables & Secrets — NEVER commit these!
 .env
 
 # Python Cache & Bytecode
@@ -19,3 +19,33 @@ _blindaid*.mp3
 .idea/
 .DS_Store
 Thumbs.db
+
+# ── Model weights — stored on HuggingFace, not GitHub ────────────────────────
+# Large .pt files go to HuggingFace via cloud/model_registry.py
+*.pt
+*.pth
+*.onnx
+*.engine
+models/.last_metrics.json
+models/.registry_cache.json
+
+# ── Training data — too large for GitHub ─────────────────────────────────────
+training/data/raw/
+training/data/images/
+training/data/labels/
+training/data/features/
+training/runs/
+
+# ── Cloud fallback log ────────────────────────────────────────────────────────
+data/cloud_log_fallback.jsonl
+
+# ── Jupyter notebooks output ──────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+
+# ── Keep these model dirs but not their contents ─────────────────────────────
+!models/.gitkeep
+!training/data/.gitkeep
