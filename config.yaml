@@ -132,8 +132,8 @@ camera:
   source:           0        # 0 = default webcam
   target_fps:       30       # Target camera framerate
   display_overlay:  true     # Show OpenCV window
-  overlay_width:    960
-  overlay_height:   540
+  overlay_width:    1280
+  overlay_height:   720
 
 # ----------------------------
 # Priority Rules

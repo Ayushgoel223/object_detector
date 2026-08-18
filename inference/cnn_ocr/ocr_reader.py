@@ -195,6 +195,13 @@ class CNNOCRReader:
         self._easyocr_reader = None
         self._device = None
 
+        # Async background worker thread for zero camera lag
+        import queue
+        import threading
+        self._ocr_input_queue = queue.Queue(maxsize=1)
+        self._worker_thread = None
+        self._stop_event = threading.Event()
+
         if self.enabled:
             self._initialize()
 
@@ -223,6 +230,7 @@ class CNNOCRReader:
                 self._region_extractor = TextRegionExtractor(tr_cnn, self._device)
                 self._engine = "crnn"
                 logger.info(f"[OCR] Custom CRNN loaded on {self._device}.")
+                self._start_worker()
                 return
             except Exception as e:
                 logger.warning(f"[OCR] CRNN load failed ({e}). Falling back to EasyOCR.")
@@ -236,6 +244,7 @@ class CNNOCRReader:
                 self._easyocr_reader = easyocr.Reader(["en"], gpu=use_gpu, verbose=False)
                 self._engine = "easyocr"
                 logger.info(f"[OCR] EasyOCR initialized (gpu={use_gpu}).")
+                self._start_worker()
             except Exception as e:
                 logger.error(f"[OCR] EasyOCR init failed: {e}")
                 self._engine = "none"
@@ -243,36 +252,88 @@ class CNNOCRReader:
             logger.warning("[OCR] No OCR engine available. OCR disabled.")
             self._engine = "none"
 
+    def _start_worker(self):
+        """Start async OCR worker thread for zero lag."""
+        import threading
+        self._worker_thread = threading.Thread(
+            target=self._ocr_worker_loop, name="OCR-Worker-Thread", daemon=True
+        )
+        self._worker_thread.start()
+
+    def _ocr_worker_loop(self):
+        """Asynchronous background loop processing OCR without blocking main pipeline."""
+        import queue
+        while not self._stop_event.is_set():
+            try:
+                frame_bgr = self._ocr_input_queue.get(timeout=0.2)
+            except queue.Empty:
+                continue
+
+            if frame_bgr is None:
+                break
+
+            try:
+                # Enhance frame image clarity (CLAHE + unsharp sharpening)
+                enhanced = self._enhance_frame_for_ocr(frame_bgr)
+
+                if self._engine == "crnn":
+                    raw_res = self._read_crnn(enhanced)
+                elif self._engine == "easyocr":
+                    raw_res = self._read_easyocr(enhanced)
+                else:
+                    raw_res = []
+
+                results = [r for r in raw_res if r.confidence >= self.min_confidence]
+                if results:
+                    self._last_results = results
+            except Exception as e:
+                logger.debug(f"[OCR Worker] Read error: {e}")
+
+    def _enhance_frame_for_ocr(self, frame_bgr: np.ndarray) -> np.ndarray:
+        """
+        Applies Contrast Enhancement (CLAHE) + Unsharp Mask Sharpening
+        to sharpen blurry textbook fonts and small medicine bottle labels.
+        """
+        try:
+            h, w = frame_bgr.shape[:2]
+
+            # 1. CLAHE Contrast Enhancement
+            lab = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2LAB)
+            l, a, b = cv2.split(lab)
+            clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
+            cl = clahe.apply(l)
+            enhanced_bgr = cv2.cvtColor(cv2.merge((cl, a, b)), cv2.COLOR_LAB2BGR)
+
+            # 2. Unsharp Masking for Sharp Text Edges
+            blurred = cv2.GaussianBlur(enhanced_bgr, (0, 0), 3)
+            sharpened = cv2.addWeighted(enhanced_bgr, 1.4, blurred, -0.4, 0)
+
+            return sharpened
+        except Exception:
+            return frame_bgr
+
     # ── Public API ────────────────────────────────────────────────────────────
 
     def read(self, frame_bgr: np.ndarray) -> List[OCRResult]:
         """
-        Run OCR on a frame. Returns cached results if not due yet (scan_interval).
-
-        Args:
-            frame_bgr: OpenCV BGR frame
-
-        Returns:
-            List[OCRResult]
+        Non-blocking async call. Enqueues frame for background OCR worker
+        and returns latest cached results instantly (zero pipeline lag).
         """
         if not self.enabled or self._engine == "none":
             return []
 
-        self._frame_counter += 1
-        if self._frame_counter % self.scan_interval != 0:
-            return self._last_results
+        # Non-blocking put frame into worker queue
+        if self._ocr_input_queue.full():
+            try:
+                self._ocr_input_queue.get_nowait()
+            except Exception:
+                pass
+        try:
+            self._ocr_input_queue.put_nowait(frame_bgr.copy())
+        except Exception:
+            pass
 
-        if self._engine == "crnn":
-            results = self._read_crnn(frame_bgr)
-        elif self._engine == "easyocr":
-            results = self._read_easyocr(frame_bgr)
-        else:
-            results = []
-
-        # Filter by confidence + tag
-        results = [r for r in results if r.confidence >= self.min_confidence]
-        self._last_results = results
-        return results
+        return self._last_results
 
     def is_ready(self) -> bool:
         return self.enabled and self._engine != "none"
@@ -325,7 +386,7 @@ class CNNOCRReader:
     # ── EasyOCR Path ──────────────────────────────────────────────────────────
 
     def _read_easyocr(self, frame_bgr: np.ndarray) -> List[OCRResult]:
-        """EasyOCR fallback path."""
+        """EasyOCR path with enhanced text reading."""
         h, w = frame_bgr.shape[:2]
         try:
             raw = self._easyocr_reader.readtext(frame_bgr, detail=1, paragraph=False)
