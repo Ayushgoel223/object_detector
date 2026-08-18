@@ -217,7 +217,7 @@ class ModelRegistry:
         print(f"HuggingFace Repo : {self.repo_id}")
         print(f"Local Model Dir  : {MODEL_DIR}")
         print(f"HF Available     : {HF_AVAILABLE}")
-        print(f"HF Token         : {'✓ set' if self.token else '✗ missing'}")
+        print(f"HF Token         : {'[SET]' if self.token else '[MISSING]'}")
         print()
         print("Local Models:")
         for phase, files in MODEL_MANIFEST.items():
@@ -229,9 +229,9 @@ class ModelRegistry:
                 if path.exists():
                     size = path.stat().st_size / 1024 / 1024
                     mtime = datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
-                    print(f"    ✓ {f:<40} {size:>6.1f} MB   {mtime}")
+                    print(f"    [FOUND] {f:<40} {size:>6.1f} MB   {mtime}")
                 else:
-                    print(f"    ✗ {f:<40} (not trained yet)")
+                    print(f"    [NOT TRAINED] {f:<40}")
 
         if self._cache:
             print("\nLast Operations:")
@@ -289,6 +289,9 @@ class ModelRegistry:
     def _get_cloud_hash(self, filename: str) -> Optional[str]:
         """Get the SHA256/MD5 of a file on HuggingFace (via model card metadata)."""
         try:
+            # Temporarily quiet httpx logger for expected initial 404s
+            import logging
+            logging.getLogger("httpx").setLevel(logging.WARNING)
             info = self.api.model_info(self.repo_id, token=self.token)
             # Check siblings (uploaded files)
             for sibling in (info.siblings or []):

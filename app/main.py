@@ -189,12 +189,15 @@ def main():
         while True:
             # ── Keyboard input ────────────────────────────────────────────────
             if show_window:
-                key = cv2.waitKey(1) & 0xFF
-                if key in (ord('q'), 27):    # Q or ESC
-                    break
-                elif key == ord('p'):
-                    paused = not paused
-                    logger.info(f"{'Paused' if paused else 'Resumed'}.")
+                try:
+                    key = cv2.waitKey(1) & 0xFF
+                    if key in (ord('q'), 27):    # Q or ESC
+                        break
+                    elif key == ord('p'):
+                        paused = not paused
+                        logger.info(f"{'Paused' if paused else 'Resumed'}.")
+                except cv2.error:
+                    show_window = False
 
             if paused:
                 time.sleep(0.05)
@@ -223,8 +226,12 @@ def main():
 
             # ── Render display ────────────────────────────────────────────────
             if show_window:
-                annotated = display.render(result.frame, result)
-                cv2.imshow("BlindAid v2", annotated)
+                try:
+                    annotated = display.render(result.frame, result)
+                    cv2.imshow("BlindAid v2", annotated)
+                except cv2.error as e:
+                    logger.warning(f"[Display] GUI window error: {e}")
+                    show_window = False
 
             # ── Periodic FPS + DB stats report ───────────────────────────────
             if time.time() - fps_report_timer >= 10.0:
@@ -242,7 +249,10 @@ def main():
         logger.info("\nShutting down...")
         pipeline.stop()
         if show_window:
-            cv2.destroyAllWindows()
+            try:
+                cv2.destroyAllWindows()
+            except cv2.error:
+                pass
         if db_ok:
             db.stop()
         logger.info("BlindAid v2 stopped. Stay safe!")
