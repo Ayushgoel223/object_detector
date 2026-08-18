@@ -165,14 +165,18 @@ class DisplayManager:
     def _draw_ocr_boxes(self, vis: np.ndarray, ocr_results: list) -> np.ndarray:
         for r in ocr_results:
             x1, y1, x2, y2 = r.bbox
-            # Dashed yellow rectangle effect via line segments
-            pts = [(x1, y1), (x2, y1), (x2, y2), (x1, y2), (x1, y1)]
-            for i in range(len(pts) - 1):
-                cv2.line(vis, pts[i], pts[i+1], C_YELLOW, 2)
+            # Dashed yellow rectangle around detected text
+            cv2.rectangle(vis, (x1, y1), (x2, y2), C_YELLOW, 2)
 
-            tag_label = r.semantic_tag or r.text[:20]
-            cv2.putText(vis, tag_label, (x1, y1 - 6),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, C_YELLOW, 1)
+            # Draw text label directly above/inside bounding box
+            label = f"{r.text} ({r.confidence:.0%})"
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            scale, thick = 0.55, 2
+            (tw, th), _ = cv2.getTextSize(label, font, scale, thick)
+            # Background pill for text label
+            cv2.rectangle(vis, (x1, max(0, y1 - th - 10)), (x1 + tw + 8, y1), (20, 20, 20), -1)
+            cv2.putText(vis, label, (x1 + 4, max(th + 2, y1 - 4)),
+                        font, scale, C_YELLOW, thick)
         return vis
 
     # ── PIL Panels ────────────────────────────────────────────────────────────
